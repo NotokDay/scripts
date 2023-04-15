@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#(c) iliban 19.01.2023
-
 ip_address=$1
 
 rm -rf nmap
