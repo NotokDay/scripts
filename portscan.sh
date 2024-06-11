@@ -1,46 +1,55 @@
 #!/bin/bash
 
-ip_address=$1
 
-rm -rf nmap
-mkdir nmap
-cd nmap
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 
-#do a fast scan first
-sudo nmap -F -Pn $ip_address > fast
-echo "[+] Fast scan finished. To see \"cat nmap/fast\""
-#scan all ports and save the result to a file
-echo "[-] Scanning first 10000 ports..."
-sudo nmap -p0-10000 -Pn -T5 $ip_address > long
-echo "[+] Scanning first 10000 ports done."
 
-echo "[-] Scanning ports 10000-20000..."
-sudo nmap -p10001-20000 -T5 -Pn $ip_address >> long
-echo "[+] Scanning ports 10000-20000 done."
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <targets.txt>"
+    exit 1
+fi
 
-echo "[-] Scanning ports 20000-30000..."
-sudo nmap -p20001-30000 -T5 -Pn $ip_address >> long
-echo "[+] Scanning ports 20000-30000 done."
+if [ -f "$1" ]; then
+        TARGETS=../$1
+else 
+        echo "Usage: $0 <targets.txt>"
+        exit 1
+fi
 
-echo "[-] Scanning ports 30000-40000..."
-sudo nmap -p30001-40000 -T5 -Pn $ip_address >> long
-echo "[+] Scanning ports 30000-40000 done."
+if [ -d nmap ]; then
+        cd nmap
+else
+        echo -e "${YELLOW}[*] Creating a directory for nmap...${NC}"
+        mkdir nmap && cd nmap
+fi
 
-echo "[-] Scanning ports 40000-50000..."
-sudo nmap -p40001-50000 -T5 -Pn $ip_address >> long
-echo "[+] Scanning ports 40000-50000 done."
 
-echo "[-] Scanning remaining ports..."
-sudo nmap -p50001- -T5 -Pn $ip_address >> long
-echo "[+] Scanning remaining ports done."
+scan_ip()
+{
+ local ip=$1
+ local outfile=$ip 
+ 
+ echo -e "${YELLOW}[*] Scanning all ports for $ip...${NC}"
+ nmap -p- --min-rate 2000 -Pn $ip 2>&1 | tee temp
+ echo -e "${GREEN}[+] Port scan finished.${NC}"
+ 
+ echo -e "${YELLOW}[*] Scanning open ports for services and versions for $ip...${NC}"
+ #modify the output so that it could be sent to nmap again
+ cat temp | grep "open" | grep -v "filtered" | cut -d "/" -f 1 | xargs | sort -u | tr " " "," |
 
-echo "[-] Scanning open ports thoroughly..."
-#modify the output so that it could be sent to nmap again
-cat long | grep "open" | grep -v "filtered" | cut -d "/" -f 1 | xargs | sort -u | tr " " "," |
+ #take the output of the long scan and run a thorough scan on open ports only
+ while read line
+ do
+       nmap -sC -sV -T4 -A -Pn $ip -p $line 2>&1 | tee $outfile
+ done
+ echo -e "${GREEN}[+] All ports scanned. To see \"cat nmap/$ip\"${NC}"
 
-#take the output of the long scan and run a thorough scan on open ports only
-while read line
+}
+
+for ip in $(cat $TARGETS);
 do
-	sudo nmap -sC -sV -T4 -A -Pn $ip_address -p $line > full
+        scan_ip $ip
 done
-echo "[+] All ports scanned. To see \"cat nmap/full\""
